@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.idea/
+.vscode/
+*.pt
+logs/
+data/uploads/*
+data/milvus/*
+data/local_store/*
+!data/uploads/.gitkeep
+!data/milvus/.gitkeep
+!data/local_store/.gitkeep

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>视觉多模态 RAG Baseline</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="/static/app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel controls">
+        <div class="brand">
+          <span class="brand-mark">VR</span>
+          <div>
+            <h1>视觉多模态 RAG</h1>
+            <p>Baseline 工作台</p>
+          </div>
+        </div>
+
+        <form id="document-form" class="control-group">
+          <label for="document-file">知识文档</label>
+          <div class="file-row">
+            <input id="document-file" name="file" type="file" accept=".txt,.md,.pdf" />
+            <button type="submit" class="icon-button" title="上传文档" aria-label="上传文档">
+              <i data-lucide="upload"></i>
+            </button>
+          </div>
+          <p id="document-status" class="status">未入库</p>
+        </form>
+
+        <form id="image-form" class="control-group">
+          <label for="image-file">图片</label>
+          <div class="file-row">
+            <input id="image-file" name="image" type="file" accept="image/*" />
+            <button type="submit" class="icon-button" title="检测图片" aria-label="检测图片">
+              <i data-lucide="scan-search"></i>
+            </button>
+          </div>
+          <p id="image-status" class="status">未检测</p>
+        </form>
+
+        <form id="ask-form" class="control-group ask-box">
+          <label for="question">问题</label>
+          <textarea id="question" name="question" rows="5" placeholder="例如：图中是否存在安全风险？依据是什么？"></textarea>
+          <button type="submit" class="primary-button">
+            <i data-lucide="send"></i>
+            <span>生成回答</span>
+          </button>
+        </form>
+      </section>
+
+      <section class="workspace">
+        <div class="panel image-panel">
+          <div class="panel-header">
+            <h2>图片检测</h2>
+            <span id="detection-count" class="pill">0 个目标</span>
+          </div>
+          <div id="image-preview-wrap" class="preview-wrap empty">
+            <img id="image-preview" alt="上传图片预览" />
+            <div id="bbox-layer" class="bbox-layer"></div>
+            <span id="empty-preview">等待图片</span>
+          </div>
+          <div id="detections" class="detections"></div>
+        </div>
+
+        <div class="panel answer-panel">
+          <div class="panel-header">
+            <h2>RAG 回答</h2>
+            <span id="store-mode" class="pill">local-json</span>
+          </div>
+          <pre id="answer" class="answer">等待提问</pre>
+          <div id="citations" class="citations"></div>
+          <div id="warnings" class="warnings"></div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

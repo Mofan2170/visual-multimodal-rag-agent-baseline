@@ -1,0 +1,12 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.1
+httpx>=0.27.0
+pydantic>=2.7.0
+numpy>=1.26.0
+pillow>=10.3.0
+pypdf>=4.2.0
+pymilvus[milvus_lite]>=2.4.6
+milvus-lite>=3.1.1
+ultralytics>=8.2.0
