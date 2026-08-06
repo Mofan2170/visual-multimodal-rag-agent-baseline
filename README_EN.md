@@ -12,7 +12,7 @@ This is a baseline implementation of a visual multimodal RAG agent. It uploads k
 - YOLO image object detection with labels, confidence scores, and bounding boxes
 - Document upload, text extraction, and chunking
 - Milvus Lite vector search with local JSON fallback
-- OpenAI-compatible Chat API, ready for DeepSeek-style usage
+- OpenAI-compatible Chat API, compatible with providers such as DeepSeek and OpenAI
 - Simple web demo for document upload, image upload, and question answering
 - Answers include visual detections and retrieved document citations
 
@@ -43,17 +43,31 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-Configure your API key and YOLO model path in `.env`:
+Configure your API key and YOLO model path in `.env`. The project uses an OpenAI-compatible Chat API and is not limited to DeepSeek; any provider compatible with `/chat/completions` can be used.
 
 ```env
-OPENAI_API_KEY=your_deepseek_api_key
-OPENAI_BASE_URL=https://api.deepseek.com
-CHAT_MODEL=deepseek-chat
+OPENAI_API_KEY=your_api_key
+OPENAI_BASE_URL=https://your-api-provider-base-url
+CHAT_MODEL=your-chat-model
 EMBEDDING_MODEL=local
 
 YOLO_MODEL=C:\path\to\your\best.pt
 YOLO_CONFIDENCE=0.25
 ```
+
+Common examples:
+
+```env
+# DeepSeek
+OPENAI_BASE_URL=https://api.deepseek.com
+CHAT_MODEL=deepseek-chat
+
+# OpenAI
+OPENAI_BASE_URL=https://api.openai.com/v1
+CHAT_MODEL=gpt-4o-mini
+```
+
+`EMBEDDING_MODEL=local` means document retrieval uses the built-in local embedding fallback. If your API provider offers an OpenAI-compatible embeddings endpoint, you can replace it with that embedding model name.
 
 Start the backend:
 

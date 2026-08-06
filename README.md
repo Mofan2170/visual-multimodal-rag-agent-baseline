@@ -12,7 +12,7 @@
 - YOLO 图片目标检测，返回类别、置信度和 bbox
 - 文档上传、文本抽取和 chunk 切分
 - Milvus Lite 向量检索，本地 JSON fallback
-- OpenAI-compatible Chat API，默认适配 DeepSeek
+- OpenAI-compatible Chat API，支持 DeepSeek、OpenAI 等兼容接口
 - 简单 Web 页面，支持上传文档、上传图片和提问
 - 回答包含视觉检测结果和文档引用片段
 
@@ -43,17 +43,31 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-在 `.env` 中填写你的 API 和 YOLO 模型路径：
+在 `.env` 中填写你的 API 和 YOLO 模型路径。项目使用 OpenAI-compatible Chat API，不限定 DeepSeek；只要服务商兼容 `/chat/completions` 即可。
 
 ```env
-OPENAI_API_KEY=你的DeepSeek_API_Key
-OPENAI_BASE_URL=https://api.deepseek.com
-CHAT_MODEL=deepseek-chat
+OPENAI_API_KEY=your_api_key
+OPENAI_BASE_URL=https://你的API服务地址
+CHAT_MODEL=你的对话模型名称
 EMBEDDING_MODEL=local
 
 YOLO_MODEL=C:\path\to\your\best.pt
 YOLO_CONFIDENCE=0.25
 ```
+
+常见配置示例：
+
+```env
+# DeepSeek
+OPENAI_BASE_URL=https://api.deepseek.com
+CHAT_MODEL=deepseek-chat
+
+# OpenAI
+OPENAI_BASE_URL=https://api.openai.com/v1
+CHAT_MODEL=gpt-4o-mini
+```
+
+`EMBEDDING_MODEL=local` 表示文档检索向量使用项目内置本地 fallback。如果你的 API 服务商提供 OpenAI-compatible embeddings 接口，可以改成对应 embedding 模型名称。
 
 启动后端：
 
