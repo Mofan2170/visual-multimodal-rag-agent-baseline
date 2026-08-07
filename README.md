@@ -1,127 +1,135 @@
-# 视觉多模态 RAG 智能体 Baseline
+# 视觉多模态 RAG 智能体
 
-**语言 / Language:** [中文](README.md) | [English](README_EN.md)
+**语言 / Language：** [中文](README.md) | [English](README_EN.md)
 
-这是一个视觉多模态 RAG 智能体的第一版 baseline。项目支持上传知识文档、上传图片进行 YOLO 目标检测，然后结合“视觉检测结果 + 文档检索证据”生成可追溯回答。
+这是一个可在本地运行的通用视觉多模态 RAG 工作台。用户可以配置任意 OpenAI-compatible Chat API，选择自己的 YOLO `.pt` 模型，上传规则文档和图片，再根据“YOLO 检测结果 + 文档检索证据”进行可追溯问答。
 
-> 注意：仓库不包含 YOLO 权重文件。你需要准备自己的训练模型，例如 `best.pt`，并在 `.env` 中配置 `YOLO_MODEL`。
+当前版本：`v0.2.0`
+
+> 仓库不包含 YOLO 权重。请使用自己训练或可信来源的模型，例如 `best.pt`。PyTorch `.pt` 文件可能执行反序列化代码，只应在本地加载可信文件。
 
 ## 功能
 
-- FastAPI 后端接口
-- YOLO 图片目标检测，返回类别、置信度和 bbox
-- 文档上传、文本抽取和 chunk 切分
-- Milvus Lite 向量检索，本地 JSON fallback
-- OpenAI-compatible Chat API，支持 DeepSeek、OpenAI 等兼容接口
-- 简单 Web 页面，支持上传文档、上传图片和提问
-- 回答包含视觉检测结果和文档引用片段
+- FastAPI 后端与单页面 Web 工作台
+- 运行时填写 API Key、Base URL、Chat Model 和 Embedding Model
+- API Key 仅保存在后端进程内存中，不写入 `.env`
+- 选择本机 YOLO 模型路径，或上传可信 `.pt` 模型
+- 返回检测类别、置信度、bbox、类别计数和模型类别列表
+- 上传 `.txt`、`.md`、`.pdf` 规则文档并自动切分、去重和入库
+- Milvus Lite 向量检索，并保留 Local JSON fallback
+- 不同 embedding 维度使用独立 Milvus 集合，切换模型时自动同步已有本地记录
+- 图片检测结果通过 `image_id` 复用，避免检测后问答时重复上传和重复推理
+- 回答使用安全的 Markdown 渲染，包含视觉依据、规则引用、来源、相似度和不确定性说明
 
-## 项目结构
+## v0.2.0 更新
 
-```text
-app/
-  main.py              FastAPI 入口
-  config.py            环境变量和路径配置
-  schemas.py           API 数据结构
-  services/
-    vision.py          YOLO 检测
-    documents.py       文档读取和切分
-    retriever.py       Milvus Lite / 本地向量检索
-    llm.py             Chat API 和本地 embedding fallback
-    rag.py             RAG 问答流程
-web/                   演示页面
-samples/               示例规则文档
-data/                  本地运行数据，默认不提交
-```
+- 网页运行时配置任意 OpenAI-compatible Chat API，配置仅保存在进程内存
+- 通过本机路径或可信文件上传动态切换 YOLO `.pt` 模型
+- Prompt 和问答流程通用化，不再绑定安全帽检测场景
+- 文档内容去重、乱码拦截、Milvus Lite 索引修复和 Local JSON fallback
+- 检测结果缓存复用、类别计数、引用片段和结构化 Markdown 回答
+- 增加上传大小、PDF 页数、文本量、图片像素和问题长度限制
+- 默认限制为本机访问，并增加同源校验、浏览器安全响应头和 CDN 完整性校验
+- 增加 Ruff、单元测试、前端语法检查和依赖漏洞审计 CI
 
 ## 快速开始
 
 ```powershell
 cd <PROJECT_ROOT>
+python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-在 `.env` 中填写你的 API 和 YOLO 模型路径。项目使用 OpenAI-compatible Chat API，不限定 DeepSeek；只要服务商兼容 `/chat/completions` 即可。
+已有 `.venv` 时无需重新创建。打开：
+
+- Web 工作台：`http://127.0.0.1:8000`
+- API 文档：`http://127.0.0.1:8000/docs`
+- 健康检查：`http://127.0.0.1:8000/health`
+
+复制 `.env.example` 为 `.env` 可以设置启动默认值，但不是必需步骤；API 和模型也可以直接在网页中配置。
+
+## API 配置
+
+`.env` 可提供启动默认值，也可以在网页“运行配置”中临时填写：
 
 ```env
 OPENAI_API_KEY=your_api_key
-OPENAI_BASE_URL=https://你的API服务地址
-CHAT_MODEL=你的对话模型名称
+OPENAI_BASE_URL=https://your-api-provider-base-url
+CHAT_MODEL=your-chat-model
 EMBEDDING_MODEL=local
-
-YOLO_MODEL=C:\path\to\your\best.pt
-YOLO_CONFIDENCE=0.25
 ```
 
-常见配置示例：
+项目不绑定特定服务商。任何兼容 OpenAI Chat Completions 格式的服务均可使用，例如：
 
 ```env
-# DeepSeek
+# DeepSeek 示例
 OPENAI_BASE_URL=https://api.deepseek.com
 CHAT_MODEL=deepseek-chat
 
-# OpenAI
+# OpenAI 示例
 OPENAI_BASE_URL=https://api.openai.com/v1
 CHAT_MODEL=gpt-4o-mini
 ```
 
-`EMBEDDING_MODEL=local` 表示文档检索向量使用项目内置本地 fallback。如果你的 API 服务商提供 OpenAI-compatible embeddings 接口，可以改成对应 embedding 模型名称。
+默认推荐 `EMBEDDING_MODEL=local`，因为部分 Chat API 服务不提供 embeddings 接口。填写远程 embedding 模型后，项目会调用 `<BASE_URL>/embeddings`；调用失败时会明确警告并回退本地向量。
 
-启动后端：
+网页显示“API 已填写”只代表配置已进入后端内存。API Key、Base URL 和模型是否有效，会在第一次问答请求时验证。
 
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
+## YOLO 模型
 
-打开页面：
+网页支持两种加载方式：
 
-```text
-http://127.0.0.1:8000
-```
+- 输入本机模型路径，例如 `C:\path\to\your\best.pt`
+- 上传可信 `.pt` 文件到本地运行目录 `data/models/`
 
-接口文档：
-
-```text
-http://127.0.0.1:8000/docs
-```
+不同模型可服务于施工安全、交通监控、货架巡检、工业质检等场景。模型类别决定“看到了什么”，上传的规则文档决定“如何判断”，代码不绑定安全帽场景。
 
 ## 演示流程
 
-1. 上传 `samples\safety_rules.txt`。
-2. 上传一张测试图片。
-3. 点击图片检测，查看目标类别、置信度和 bbox。
-4. 输入问题，例如：`图片中是否存在安全问题？依据是什么？`
-5. 点击生成回答，查看 RAG 回答、检测结果和引用片段。
+1. 填写 API 配置；也可留空使用本地 fallback 回答。
+2. 选择自己的 YOLO `.pt` 模型，确认页面显示模型类别。
+3. 上传规则文档，例如 `samples\safety_rules.txt`。
+4. 上传图片并点击检测，检查检测框和类别计数。
+5. 输入问题并点击运行。
+6. 查看回答、视觉依据、引用片段、来源和 warning。
 
-## YOLO 模型说明
+重复上传内容相同的文档时，系统会跳过重复向量入库。切换 YOLO 模型后，旧图片检测缓存会失效，需要重新检测图片。
 
-项目不会上传或内置权重文件。请自行训练或准备 YOLO 模型，并在 `.env` 中配置：
-
-```env
-YOLO_MODEL=C:\path\to\your\best.pt
-```
-
-如果是安全帽检测场景，建议模型类别至少包含：
-
-```text
-head
-helmet
-person
-```
-
-通用 `yolov8n.pt` 只能识别 COCO 类别，通常不能准确识别安全帽。
-
-## 常用命令
-
-检查后端状态：
+## 本地测试
 
 ```powershell
-Invoke-RestMethod -Uri http://127.0.0.1:8000/health
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m compileall -q app
+.\.venv\Scripts\ruff.exe check app tests
+node --check web\app.js
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m pip_audit -r requirements.txt
 ```
 
-关闭 8000 端口后端：
+测试覆盖文档处理、chunk 主键唯一性、Milvus 多 chunk 检索、embedding 维度切换和文档去重。GitHub Actions 配置位于 `.github/workflows/ci.yml`。
+
+## 数据与限制
+
+- 文档、图片、模型和向量数据保存在 `data/`，并已被 Git 忽略。
+- 默认上传限制：文档 20 MB、图片 20 MB、模型 500 MB，可在 `.env` 修改。
+- 默认内容限制：文档 200 万字符、PDF 500 页、图片 4000 万像素、问题 8000 字符。
+- 当前运行时配置和图片检测缓存位于单个后端进程内存中，重启后恢复 `.env` 默认值。
+- 本地 hashing embedding 用于 baseline 演示，中文语义召回质量不等同于专业 embedding 模型。
+
+## 安全说明
+
+- 默认 `ALLOW_REMOTE_ACCESS=false`，只接受本机请求；请使用 `127.0.0.1` 启动服务。
+- 当前版本没有用户认证、权限管理和多租户隔离，不应直接暴露到公网。
+- `.env`、上传内容、向量数据和 `.pt` 权重均被 Git 忽略；提交前仍建议运行密钥扫描。
+- `.pt` 权重可能包含可执行反序列化内容，只加载自己训练或明确可信来源的模型。
+- Base URL 只允许 HTTP/HTTPS，且禁止嵌入用户名、密码、查询参数或 fragment。
+- 前端 Markdown 在插入页面前经过 DOMPurify 清理；第三方脚本固定版本并启用 SRI 校验。
+
+## 关闭后端
+
+运行服务的终端按 `Ctrl+C`。也可以在 PowerShell 中执行：
 
 ```powershell
 $conn = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
@@ -132,14 +140,8 @@ if ($conn) {
 }
 ```
 
-检查 YOLO 模型类别：
-
-```powershell
-.\.venv\Scripts\python.exe -c "from ultralytics import YOLO; m=YOLO(r'C:\path\to\your\best.pt'); print(m.names)"
-```
-
 ## 版本规划
 
-- `v0.1`：baseline，完成视觉检测、RAG 检索、API 问答和 Web 演示。
-- `v0.2`：优化提示词、前端展示、错误处理和评估脚本。
-- `v0.3`：接入 LangGraph、Neo4j 和更完整的回答溯源。
+- `v0.1`：视觉检测、RAG 检索、API 问答和 Web 演示 baseline。
+- `v0.2.0`：通用运行配置、YOLO 模型切换、文档去重、检索修复、安全加固和通用规则问答。
+- `v0.3`：LangGraph 编排、Neo4j 知识图谱、会话管理和更完整的评测体系。

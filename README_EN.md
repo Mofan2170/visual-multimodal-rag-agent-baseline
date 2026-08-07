@@ -1,127 +1,135 @@
-# Visual Multimodal RAG Agent Baseline
+# Visual Multimodal RAG Agent
 
 **Language / 语言:** [中文](README.md) | [English](README_EN.md)
 
-This is a baseline implementation of a visual multimodal RAG agent. It uploads knowledge documents, analyzes images with YOLO object detection, retrieves document evidence, and generates traceable answers from visual results plus retrieved context.
+A generalized visual multimodal RAG workbench that runs locally. Configure any OpenAI-compatible Chat API, select your own YOLO `.pt` model, upload rule documents and images, and answer questions with traceable YOLO detections and retrieved evidence.
 
-> Note: YOLO weight files are not included in this repository. You need to provide your own trained model, such as `best.pt`, and configure `YOLO_MODEL` in `.env`.
+Current release: `v0.2.0`
+
+> YOLO weights are not included. Use a model you trained or obtained from a trusted source, such as `best.pt`. PyTorch `.pt` files may execute code during deserialization, so only load trusted files locally.
 
 ## Features
 
-- FastAPI backend
-- YOLO image object detection with labels, confidence scores, and bounding boxes
-- Document upload, text extraction, and chunking
-- Milvus Lite vector search with local JSON fallback
-- OpenAI-compatible Chat API, compatible with providers such as DeepSeek and OpenAI
-- Simple web demo for document upload, image upload, and question answering
-- Answers include visual detections and retrieved document citations
+- FastAPI backend and a single-page web workbench
+- Runtime API Key, Base URL, Chat Model, and Embedding Model configuration
+- Runtime API keys stay in backend process memory and are never written to `.env`
+- Local YOLO path selection and trusted `.pt` upload
+- Detection labels, confidence scores, bounding boxes, label counts, and model classes
+- `.txt`, `.md`, and `.pdf` rule ingestion with chunking and content deduplication
+- Milvus Lite retrieval with a Local JSON fallback
+- Separate Milvus collections per embedding dimension with automatic local-record synchronization
+- Reusable image analysis through `image_id`, avoiding duplicate uploads and inference
+- Safely rendered Markdown answers with visual evidence, citations, sources, scores, and uncertainty notes
 
-## Project Structure
+## What's New in v0.2.0
 
-```text
-app/
-  main.py              FastAPI entrypoint
-  config.py            Environment and path settings
-  schemas.py           API schemas
-  services/
-    vision.py          YOLO detection
-    documents.py       Document loading and chunking
-    retriever.py       Milvus Lite / local vector retrieval
-    llm.py             Chat API and local embedding fallback
-    rag.py             RAG answer flow
-web/                   Demo page
-samples/               Example safety rules
-data/                  Local runtime data, ignored by git
-```
+- Runtime configuration for any OpenAI-compatible Chat API, kept only in process memory
+- Dynamic YOLO `.pt` switching through a local path or trusted file upload
+- Generalized prompts and RAG logic with no hard-coded helmet scenario
+- Document deduplication, encoding-corruption rejection, Milvus Lite fixes, and Local JSON fallback
+- Reusable detections, class counts, citation excerpts, and structured Markdown answers
+- Limits for upload size, PDF pages, extracted text, image pixels, and question length
+- Localhost-only access by default, same-origin checks, browser security headers, and CDN integrity checks
+- CI coverage for Ruff, unit tests, frontend syntax, dependency consistency, and vulnerability auditing
 
 ## Quick Start
 
 ```powershell
 cd <PROJECT_ROOT>
+python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Configure your API key and YOLO model path in `.env`. The project uses an OpenAI-compatible Chat API and is not limited to DeepSeek; any provider compatible with `/chat/completions` can be used.
+Skip virtual-environment creation if `.venv` already exists. Open:
+
+- Web workbench: `http://127.0.0.1:8000`
+- API documentation: `http://127.0.0.1:8000/docs`
+- Health endpoint: `http://127.0.0.1:8000/health`
+
+Copying `.env.example` to `.env` is optional and provides startup defaults. The API and model can also be configured directly in the web page.
+
+## API Configuration
+
+`.env` can provide startup defaults, or you can enter temporary values in the web runtime form:
 
 ```env
 OPENAI_API_KEY=your_api_key
 OPENAI_BASE_URL=https://your-api-provider-base-url
 CHAT_MODEL=your-chat-model
 EMBEDDING_MODEL=local
-
-YOLO_MODEL=C:\path\to\your\best.pt
-YOLO_CONFIDENCE=0.25
 ```
 
-Common examples:
+The project does not require a specific provider. Any service compatible with OpenAI Chat Completions can be used, for example:
 
 ```env
-# DeepSeek
+# DeepSeek example
 OPENAI_BASE_URL=https://api.deepseek.com
 CHAT_MODEL=deepseek-chat
 
-# OpenAI
+# OpenAI example
 OPENAI_BASE_URL=https://api.openai.com/v1
 CHAT_MODEL=gpt-4o-mini
 ```
 
-`EMBEDDING_MODEL=local` means document retrieval uses the built-in local embedding fallback. If your API provider offers an OpenAI-compatible embeddings endpoint, you can replace it with that embedding model name.
+`EMBEDDING_MODEL=local` is recommended by default because some Chat API providers do not expose an embeddings endpoint. When a remote embedding model is configured, the app calls `<BASE_URL>/embeddings`; failures are reported and use the local fallback.
 
-Start the backend:
+The “API values entered” status means only that the backend holds the configuration. The key, URL, and model are validated on the first question request.
 
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
+## YOLO Model
 
-Open the web demo:
+The web page supports two loading methods:
 
-```text
-http://127.0.0.1:8000
-```
+- Enter a local path such as `C:\path\to\your\best.pt`
+- Upload a trusted `.pt` file into the local `data/models/` runtime directory
 
-API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
+Different models can serve construction safety, traffic monitoring, shelf inspection, industrial quality control, and other scenarios. YOLO classes define what the app can see, while uploaded rules define how detections are interpreted. The code is not tied to helmet detection.
 
 ## Demo Flow
 
-1. Upload `samples\safety_rules.txt`.
-2. Upload a test image.
-3. Run image detection and inspect labels, confidence scores, and bounding boxes.
-4. Ask a question such as: `Is there any safety issue in this image? What is the evidence?`
-5. Review the RAG answer, detections, and retrieved citations.
+1. Enter API settings, or leave the API key empty to use the local fallback answer.
+2. Select your YOLO `.pt` model and confirm that its classes appear.
+3. Upload a rule document such as `samples\safety_rules.txt`.
+4. Upload an image, run detection, and inspect boxes and label counts.
+5. Enter a question and run the workflow.
+6. Review the answer, visual evidence, citations, sources, and warnings.
 
-## YOLO Model Requirement
+Uploading identical document content skips duplicate vector ingestion. Switching the YOLO model invalidates previous image-analysis cache entries, so the image must be analyzed again.
 
-The repository does not ship with model weights. Prepare or train your own YOLO model and configure it in `.env`:
-
-```env
-YOLO_MODEL=C:\path\to\your\best.pt
-```
-
-For helmet safety detection, recommended classes include:
-
-```text
-head
-helmet
-person
-```
-
-The generic `yolov8n.pt` model only supports COCO classes and usually cannot detect safety helmets accurately.
-
-## Useful Commands
-
-Check backend health:
+## Local Tests
 
 ```powershell
-Invoke-RestMethod -Uri http://127.0.0.1:8000/health
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m compileall -q app
+.\.venv\Scripts\ruff.exe check app tests
+node --check web\app.js
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m pip_audit -r requirements.txt
 ```
 
-Stop the backend on port 8000:
+Tests cover document processing, unique chunk IDs, multi-chunk Milvus retrieval, embedding-dimension switching, and document deduplication. GitHub Actions configuration is provided in `.github/workflows/ci.yml`.
+
+## Data and Limitations
+
+- Documents, images, models, and vectors are stored under `data/` and ignored by Git.
+- Default upload limits are 20 MB for documents, 20 MB for images, and 500 MB for models. They are configurable in `.env`.
+- Default content limits are 2 million document characters, 500 PDF pages, 40 million image pixels, and 8,000 question characters.
+- Runtime configuration and image-analysis cache live in one backend process and reset to `.env` defaults after restart.
+- The built-in hashing embedding is suitable for a baseline demo, not production-grade semantic retrieval.
+
+## Security Notes
+
+- `ALLOW_REMOTE_ACCESS=false` is the default, so only local requests are accepted. Start Uvicorn on `127.0.0.1`.
+- This release has no user authentication, authorization, or tenant isolation and must not be exposed directly to the public internet.
+- `.env`, uploads, vector data, and `.pt` weights are ignored by Git; a secret scan is still recommended before each release.
+- A `.pt` weight can contain executable deserialization payloads. Load only models you trained or explicitly trust.
+- Base URLs must use HTTP/HTTPS and cannot contain embedded credentials, query strings, or fragments.
+- Markdown is sanitized with DOMPurify before insertion; third-party scripts are version-pinned and protected with SRI.
+
+## Stop the Backend
+
+Press `Ctrl+C` in the terminal running Uvicorn, or use PowerShell:
 
 ```powershell
 $conn = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
@@ -132,14 +140,8 @@ if ($conn) {
 }
 ```
 
-Inspect YOLO model classes:
-
-```powershell
-.\.venv\Scripts\python.exe -c "from ultralytics import YOLO; m=YOLO(r'C:\path\to\your\best.pt'); print(m.names)"
-```
-
 ## Roadmap
 
-- `v0.1`: Baseline with visual detection, RAG retrieval, API answering, and web demo.
-- `v0.2`: Better prompting, UI refinements, error handling, and evaluation scripts.
-- `v0.3`: LangGraph orchestration, Neo4j knowledge graph, and richer traceability.
+- `v0.1`: Visual detection, RAG retrieval, API answering, and web demo baseline.
+- `v0.2.0`: General runtime configuration, YOLO switching, deduplication, retrieval fixes, security hardening, and generic rule-based RAG.
+- `v0.3`: LangGraph orchestration, Neo4j knowledge graph, conversation management, and a broader evaluation suite.

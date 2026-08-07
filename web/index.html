@@ -3,75 +3,164 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>视觉多模态 RAG Baseline</title>
+    <title>视觉多模态 RAG 工作台</title>
     <link rel="stylesheet" href="/static/styles.css" />
-    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script
+      defer
+      src="https://unpkg.com/lucide@1.29.0"
+      integrity="sha384-wyD7qHuL36bnPiQFkqRuq46WXCrlyGbI5w/mvqgTcJ/NwMFSXCr1f+DpJoCqeLRY"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/marked@18.0.7/lib/marked.umd.js"
+      integrity="sha384-7njNzKcJUBdezPGfqUrIFizi2QkXJH0M6wF3o1h9GE/nce6X4YdecMwh31B19yTi"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"
+      integrity="sha384-piCcpDdJ7qVeK4Tv8Z6Hpcr3ZBIgP16TxQTPVfsLFdZ5uDgwc3Y8Ho7oUnqf12qu"
+      crossorigin="anonymous"
+    ></script>
     <script defer src="/static/app.js"></script>
   </head>
   <body>
     <main class="shell">
-      <section class="panel controls">
+      <aside class="panel sidebar">
         <div class="brand">
           <span class="brand-mark">VR</span>
           <div>
             <h1>视觉多模态 RAG</h1>
-            <p>Baseline 工作台</p>
+            <p id="runtime-summary">读取状态中</p>
           </div>
         </div>
 
-        <form id="document-form" class="control-group">
-          <label for="document-file">知识文档</label>
-          <div class="file-row">
-            <input id="document-file" name="file" type="file" accept=".txt,.md,.pdf" />
-            <button type="submit" class="icon-button" title="上传文档" aria-label="上传文档">
-              <i data-lucide="upload"></i>
+        <form id="runtime-form" class="group">
+          <div class="group-title">
+            <h2>运行配置</h2>
+            <button type="submit" class="icon-button" title="保存配置" aria-label="保存配置">
+              <i data-lucide="save"></i>
             </button>
           </div>
+          <label for="api-key">API Key</label>
+          <p class="field-help">填写服务商提供的 API Key；留空会保留后端当前 Key。</p>
+          <input id="api-key" name="api_key" type="password" autocomplete="off" placeholder="例如：sk-...（输入内容不会回显）" />
+          <label class="inline-toggle" for="clear-api-key">
+            <input id="clear-api-key" type="checkbox" />
+            <span>清除当前 API Key</span>
+          </label>
+          <label for="base-url">Base URL</label>
+          <p class="field-help">填写 API 根地址，不要添加 <code>/chat/completions</code>。</p>
+          <input id="base-url" name="base_url" type="url" placeholder="例如：https://api.deepseek.com" />
+          <label for="chat-model">Chat Model</label>
+          <p class="field-help">填写服务商提供的对话模型名称。</p>
+          <input id="chat-model" name="chat_model" type="text" placeholder="例如：deepseek-chat" />
+          <label for="embedding-model">Embedding Model</label>
+          <p class="field-help">没有 embeddings 接口时保持 <code>local</code>；有接口时填写对应模型名。</p>
+          <input id="embedding-model" name="embedding_model" type="text" value="local" />
+          <p id="runtime-status" class="status">未配置</p>
+        </form>
+
+        <form id="model-path-form" class="group">
+          <div class="group-title">
+            <h2>YOLO 模型</h2>
+            <button type="submit" class="icon-button" title="选择模型路径" aria-label="选择模型路径">
+              <i data-lucide="folder-check"></i>
+            </button>
+          </div>
+          <label for="model-path">本机 .pt 路径</label>
+          <p class="field-help">填写自己训练的 YOLO 权重完整路径，然后点击右上角文件夹按钮。</p>
+          <input id="model-path" name="model_path" type="text" placeholder="例如：D:\models\best.pt" />
+          <p id="model-status" class="status">未加载</p>
+        </form>
+
+        <form id="model-upload-form" class="group compact">
+          <label for="model-file">上传可信 .pt</label>
+          <p class="field-help">也可以选择可信模型文件，再点击右侧上传按钮加载。</p>
+          <div class="file-row">
+            <input id="model-file" name="file" type="file" accept=".pt" />
+            <button type="submit" class="icon-button" title="上传模型" aria-label="上传模型">
+              <i data-lucide="upload-cloud"></i>
+            </button>
+          </div>
+        </form>
+
+        <div id="class-list" class="class-list"></div>
+      </aside>
+
+      <section class="panel controls">
+        <form id="document-form" class="group">
+          <div class="group-title">
+            <h2>规则文档</h2>
+            <button type="submit" class="icon-button" title="上传规则" aria-label="上传规则">
+              <i data-lucide="file-up"></i>
+            </button>
+          </div>
+          <p class="field-help">上传用于判断问题的规则或知识，支持 TXT、Markdown 和 PDF。</p>
+          <input id="document-file" name="file" type="file" accept=".txt,.md,.pdf" />
           <p id="document-status" class="status">未入库</p>
         </form>
 
-        <form id="image-form" class="control-group">
-          <label for="image-file">图片</label>
-          <div class="file-row">
-            <input id="image-file" name="image" type="file" accept="image/*" />
+        <form id="image-form" class="group">
+          <div class="group-title">
+            <h2>图片检测</h2>
             <button type="submit" class="icon-button" title="检测图片" aria-label="检测图片">
               <i data-lucide="scan-search"></i>
             </button>
           </div>
+          <p class="field-help">选择待分析图片，再点击右上角检测按钮运行当前 YOLO 模型。</p>
+          <input id="image-file" name="image" type="file" accept="image/*" />
           <p id="image-status" class="status">未检测</p>
         </form>
 
-        <form id="ask-form" class="control-group ask-box">
-          <label for="question">问题</label>
-          <textarea id="question" name="question" rows="5" placeholder="例如：图中是否存在安全风险？依据是什么？"></textarea>
-          <button type="submit" class="primary-button">
-            <i data-lucide="send"></i>
-            <span>生成回答</span>
-          </button>
+        <form id="ask-form" class="group question-group">
+          <div class="group-title">
+            <h2>问题</h2>
+            <button type="submit" class="primary-button">
+              <i data-lucide="send"></i>
+              <span>运行</span>
+            </button>
+          </div>
+          <p class="field-help">问题应与图片和规则相关，系统会同时引用检测结果与文档证据。</p>
+          <textarea id="question" name="question" rows="6" placeholder="例如：图片中的人员是否符合规则？"></textarea>
         </form>
+
+        <div class="status-grid">
+          <div>
+            <span>检索</span>
+            <strong id="store-mode">local-json</strong>
+          </div>
+          <div>
+            <span>目标</span>
+            <strong id="detection-count">0</strong>
+          </div>
+        </div>
       </section>
 
       <section class="workspace">
         <div class="panel image-panel">
           <div class="panel-header">
-            <h2>图片检测</h2>
-            <span id="detection-count" class="pill">0 个目标</span>
+            <h2>检测视图</h2>
+            <div id="count-pills" class="count-pills"></div>
           </div>
-          <div id="image-preview-wrap" class="preview-wrap empty">
+          <div id="image-preview-wrap" class="preview-wrap">
             <img id="image-preview" alt="上传图片预览" />
             <div id="bbox-layer" class="bbox-layer"></div>
             <span id="empty-preview">等待图片</span>
           </div>
-          <div id="detections" class="detections"></div>
+          <div id="detections" class="list"></div>
         </div>
 
         <div class="panel answer-panel">
           <div class="panel-header">
             <h2>RAG 回答</h2>
-            <span id="store-mode" class="pill">local-json</span>
+            <button id="refresh-status" type="button" class="icon-button" title="刷新状态" aria-label="刷新状态">
+              <i data-lucide="refresh-cw"></i>
+            </button>
           </div>
-          <pre id="answer" class="answer">等待提问</pre>
-          <div id="citations" class="citations"></div>
+          <div id="answer" class="answer markdown-body">等待运行</div>
+          <div id="citations" class="list"></div>
           <div id="warnings" class="warnings"></div>
         </div>
       </section>

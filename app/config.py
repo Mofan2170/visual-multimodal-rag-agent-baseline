@@ -7,7 +7,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
@@ -17,11 +16,15 @@ def _env(name: str, default: str) -> str:
     return value if value not in (None, "") else default
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    fallback = "true" if default else "false"
+    return _env(name, fallback).strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     root_dir: Path = ROOT_DIR
-    app_name: str = "Visual Multimodal RAG Baseline"
-    api_prefix: str = "/api"
+    app_name: str = "Visual Multimodal RAG Workbench"
 
     openai_api_key: str = _env("OPENAI_API_KEY", "")
     openai_base_url: str = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
@@ -35,6 +38,21 @@ class Settings:
     chunk_size: int = int(_env("CHUNK_SIZE", "900"))
     chunk_overlap: int = int(_env("CHUNK_OVERLAP", "150"))
     retrieval_top_k: int = int(_env("RETRIEVAL_TOP_K", "5"))
+
+    max_document_upload_mb: int = int(_env("MAX_DOCUMENT_UPLOAD_MB", "20"))
+    max_image_upload_mb: int = int(_env("MAX_IMAGE_UPLOAD_MB", "20"))
+    max_model_upload_mb: int = int(_env("MAX_MODEL_UPLOAD_MB", "500"))
+    max_document_characters: int = int(_env("MAX_DOCUMENT_CHARACTERS", "2000000"))
+    max_pdf_pages: int = int(_env("MAX_PDF_PAGES", "500"))
+    max_image_pixels: int = int(_env("MAX_IMAGE_PIXELS", "40000000"))
+    max_question_characters: int = int(_env("MAX_QUESTION_CHARACTERS", "8000"))
+
+    allow_remote_access: bool = _env_bool("ALLOW_REMOTE_ACCESS", False)
+    allowed_hosts: tuple[str, ...] = tuple(
+        host.strip()
+        for host in _env("ALLOWED_HOSTS", "127.0.0.1,localhost,::1,testserver").split(",")
+        if host.strip()
+    )
 
     milvus_collection: str = _env("MILVUS_COLLECTION", "visual_multimodal_rag_chunks")
 
@@ -71,6 +89,10 @@ class Settings:
         return self.local_store_dir / "chunks.json"
 
     @property
+    def model_upload_dir(self) -> Path:
+        return self.data_dir / "models"
+
+    @property
     def web_dir(self) -> Path:
         return self.root_dir / "web"
 
@@ -82,6 +104,7 @@ class Settings:
             self.image_upload_dir,
             self.milvus_dir,
             self.local_store_dir,
+            self.model_upload_dir,
         ):
             path.mkdir(parents=True, exist_ok=True)
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 SUPPORTED_DOCUMENT_EXTENSIONS = {".txt", ".md", ".pdf"}
 
 
@@ -17,16 +16,43 @@ def safe_filename(filename: str | None, fallback: str = "upload") -> str:
     return cleaned or fallback
 
 
-def extract_text(path: Path) -> str:
+def extract_text(
+    path: Path,
+    max_characters: int | None = None,
+    max_pdf_pages: int | None = None,
+) -> str:
     suffix = path.suffix.lower()
     if suffix not in SUPPORTED_DOCUMENT_EXTENSIONS:
         allowed = ", ".join(sorted(SUPPORTED_DOCUMENT_EXTENSIONS))
         raise DocumentProcessingError(f"Unsupported document type {suffix!r}. Allowed: {allowed}")
 
     if suffix in {".txt", ".md"}:
-        return _read_text_file(path)
+        text = _read_text_file(path)
+    else:
+        text = _read_pdf(path, max_pdf_pages=max_pdf_pages)
 
-    return _read_pdf(path)
+    if max_characters is not None and len(text) > max_characters:
+        raise DocumentProcessingError(
+            f"Document contains {len(text)} characters, exceeding the configured "
+            f"limit of {max_characters}."
+        )
+
+    if text_looks_corrupted(text):
+        raise DocumentProcessingError(
+            "文档内容疑似编码损坏，包含大量连续问号或替换字符。请将原文件另存为 UTF-8 后重新上传。"
+        )
+    return text
+
+
+def text_looks_corrupted(text: str) -> bool:
+    compact = re.sub(r"\s+", "", text)
+    if not compact:
+        return False
+    replacement_count = compact.count("\ufffd")
+    question_run_count = sum(len(match.group(0)) for match in re.finditer(r"\?{4,}", compact))
+    return replacement_count >= 2 or (
+        question_run_count >= 4 and question_run_count / len(compact) >= 0.1
+    )
 
 
 def split_text(text: str, chunk_size: int = 900, overlap: int = 150) -> list[str]:
@@ -44,7 +70,9 @@ def split_text(text: str, chunk_size: int = 900, overlap: int = 150) -> list[str
         chunk = normalized[start:end].strip()
 
         if end < len(normalized):
-            break_at = max(chunk.rfind("\n\n"), chunk.rfind("\n"), chunk.rfind("。"), chunk.rfind("."))
+            break_at = max(
+                chunk.rfind("\n\n"), chunk.rfind("\n"), chunk.rfind("。"), chunk.rfind(".")
+            )
             if break_at > chunk_size * 0.5:
                 end = start + break_at + 1
                 chunk = normalized[start:end].strip()
@@ -68,16 +96,26 @@ def _read_text_file(path: Path) -> str:
     raise DocumentProcessingError("Could not decode text file as UTF-8 or GB18030.")
 
 
-def _read_pdf(path: Path) -> str:
+def _read_pdf(path: Path, max_pdf_pages: int | None = None) -> str:
     try:
         from pypdf import PdfReader
     except ImportError as exc:
         raise DocumentProcessingError("PDF support requires pypdf. Run: pip install pypdf") from exc
 
-    reader = PdfReader(str(path))
-    pages: list[str] = []
-    for page_number, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        if text.strip():
-            pages.append(f"[Page {page_number}]\n{text.strip()}")
-    return "\n\n".join(pages)
+    try:
+        reader = PdfReader(str(path))
+        if max_pdf_pages is not None and len(reader.pages) > max_pdf_pages:
+            raise DocumentProcessingError(
+                f"PDF contains {len(reader.pages)} pages, exceeding the configured "
+                f"limit of {max_pdf_pages}."
+            )
+        pages: list[str] = []
+        for page_number, page in enumerate(reader.pages, start=1):
+            text = page.extract_text() or ""
+            if text.strip():
+                pages.append(f"[Page {page_number}]\n{text.strip()}")
+        return "\n\n".join(pages)
+    except DocumentProcessingError:
+        raise
+    except Exception as exc:
+        raise DocumentProcessingError(f"Could not read PDF document: {exc}") from exc
